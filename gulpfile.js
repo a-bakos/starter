@@ -260,6 +260,38 @@ gulp.task(
 );
 
 /**
+ * Humans.txt
+ * http://humanstxt.org/Standard.html
+ */
+gulp.task('human', () => {
+	return gulp.src('index.php')
+	.pipe(humans({
+		site: [
+			'Last update: 0000/00/00',
+			userConfig.humansTXT.standards(),
+			userConfig.humansTXT.components(),
+			userConfig.humansTXT.software()
+		],
+		note: userConfig.humansTXT.note(),
+		team: userConfig.humansTXT.team()
+	}))
+	.pipe(gulp.dest('./'))
+	.pipe(notify({
+		"title": "[ human ]",
+		"message": "HumansTXT created."
+	}));
+});
+/**
+ * Update last modified date in humans.txt
+ */
+gulp.task('human-update', () => {
+	return gulp.src('./humans.txt')
+		.pipe(updateHumanstxtDate())
+		.pipe(gulp.dest('./'));
+		// .pipe(notify({message: 'HumansTXT updated'}));
+});
+
+/**
  * Browser sync
  *
  * We need to use 'proxy' to serve WordPress sites.
