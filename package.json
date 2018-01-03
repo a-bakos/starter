@@ -7,7 +7,7 @@
     "phpcbf-auto": "phpcbf --standard=WordPress-VIP -p 404.php archive.php comments.php footer.php functions.php header.php index.php page.php search.php sidebar.php single.php template-parts/ inc/",
     "phpcbf": "phpcbf --standard=WordPress-VIP -p"
   },
-  "author": "abakos",
+  "author": "Taylor & Francis - EMP Web Team",
   "license": "ISC",
   "devDependencies": {
     "babel-core": "^6.26.0",

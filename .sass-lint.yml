@@ -58,8 +58,8 @@ rules:
   no-empty-rulesets: 1
   no-extends: 1
   no-ids: 2
-  no-important: 0
-  no-invalid-hex: 1
+  no-important: 2
+  no-invalid-hex: 2
   no-mergeable-selectors: 1
   no-misspelled-properties:
     - 1
@@ -89,9 +89,9 @@ rules:
     - 1
     - include: false
   space-between-parens:
-    - 1
-    - include: true
-  trailing-semicolon: 1
+    - 0
+    - include: false
+  trailing-semicolon: 2
   url-quotes: 1
   zero-unit:
     - 1

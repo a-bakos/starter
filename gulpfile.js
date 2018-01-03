@@ -7,8 +7,9 @@
  * gulp --tasks
  */
 
-// Load user/developer configuration file
+// Load user/developer configuration file:
 const userConfig = require( './userConfig' );
+// Gulp notifier environment variable:
 process.env.DISABLE_NOTIFIER = userConfig.gulpPopUps();
 
 // Gulp plugins
@@ -22,12 +23,16 @@ const svgStore = require( 'gulp-svgstore' );
 const svgmin = require( 'gulp-svgmin' );
 const sass = require( 'gulp-sass' );
 const notify = require( 'gulp-notify' );
+const imagemin = require( 'gulp-imagemin' );
+const eslint = require( 'gulp-eslint' );
+const autoprefixer = require( 'gulp-autoprefixer' );
+const sassLint = require( 'gulp-sass-lint' );
+const phpcs = require( 'gulp-phpcs' );
+const babel = require( 'gulp-babel' );
 
 // Node packages
 const del = require( 'del' );
 const bsync = require( 'browser-sync' );
-
-//const log = console.log;
 
 /**
  * Runs the SVG spriting process,
@@ -35,9 +40,7 @@ const bsync = require( 'browser-sync' );
  */
 gulp.task(
 	'svg', () => {
-		return gulp.src([
-			'dev/svg/*.svg'
-		])
+		return gulp.src( [ userConfig.devSvgFiles() ] )
 		.pipe( svgStore( { inlineSvg: true } ) )
 		.pipe(
 			svgmin({
@@ -47,18 +50,16 @@ gulp.task(
 				}]
 			})
 		)
-		.pipe( gulp.dest( 'build/svg' ) );
+		.pipe( gulp.dest( userConfig.buildSvgFolder() ) );
 	}
 );
 
 /**
  * Compress images
  */
-const imagemin = require( 'gulp-imagemin' );
-
 gulp.task(
 	'img-opt', () => {
-		return gulp.src([ 'images/img/*' ])
+		return gulp.src([ userConfig.devImgFiles() ])
 		.pipe(
 			imagemin([
 				imagemin.gifsicle( { interlaced: true } ),
@@ -72,7 +73,7 @@ gulp.task(
 				)
 			])
 		)
-		.pipe( gulp.dest( 'build/images' ) )
+		.pipe( gulp.dest( userConfig.buildImgFolder() ) )
 		.pipe(
 			notify({
 				"title": "[ img-opt ]",
@@ -93,9 +94,9 @@ gulp.task(
  */
 gulp.task(
 	'strip', () => {
-		return gulp.src([ 'dev/js/*.js' ])
+		return gulp.src([ userConfig.devJsFiles() ])
 		.pipe( stripDebug() )
-		.pipe( gulp.dest( 'dev/js' ) )
+		.pipe( gulp.dest( userConfig.devJsFolder() ) )
 		.pipe(
 			notify({
 				"title": "[ strip ]",
@@ -111,17 +112,15 @@ gulp.task(
  * Concatenate and minify JavaScript files
  * Babel config in package.json @ babel
  */
-const babel = require( 'gulp-babel' );
-
 gulp.task(
 	'scripts', () => {
-		return gulp.src([ 'dev/js/*.js' ])
+		return gulp.src([ userConfig.devJsFiles() ])
 		.pipe( sourcemaps.init() )
-		.pipe( concat( 'script.min.js' ) ) // Concatenate all JS files
+		.pipe( concat( userConfig.compiledJsFile() ) ) // Concatenate all JS files
 		.pipe( babel( { presets: ['env'] } ) ) // Transpile to pre ES6 version
 		.pipe( uglify() ) // Minify the JS script
 		.pipe( sourcemaps.write( '.' ) ) // Attach sourcemaps
-		.pipe( gulp.dest( 'build/scripts' ) )
+		.pipe( gulp.dest( userConfig.buildJsFolder() ) )
 		.pipe( bsync.stream() )
 		.pipe(
 			notify({
@@ -139,14 +138,11 @@ gulp.task(
  * Rules are in package.json @ eslintConfig
  * http://eslint.org/
   */
-const eslint = require( 'gulp-eslint' );
-
 gulp.task(
 	'jslint', () => {
-		return gulp.src([ './dev/js/*.js' ])
-		.pipe( eslint() )
+		return gulp.src([ userConfig.devJsFiles() ])
+		.pipe( eslint( { "configFile": userConfig.jsLintConfig() } ) )
 		.pipe( eslint.format( userConfig.jsLintDisplay() ) )
-		.pipe( eslint.failAfterError() )
 		.pipe(
 			notify({
 				"title": "[ jslint ]",
@@ -157,14 +153,23 @@ gulp.task(
 		)
 	}
 );
-
-/*
-IMPORTANT:
-
-gulp.task('default', ['lint'], function () {
-    // This will only run if the lint task is successful...
-});
-/*
+/**
+ * Lint the custom JavaScript files for production
+ * Rules are in package.json @ eslintConfig
+ * http://eslint.org/
+  */
+gulp.task(
+	'jslint:prod', (done) => {
+		return gulp.src([ userConfig.devJsFiles() ])
+		.pipe( eslint( { "configFile": userConfig.jsLintConfig() } ) )
+		.pipe( eslint.format( userConfig.jsLintDisplay() ) )
+		.pipe( eslint.failAfterError() )
+		.on("error", () => {
+			console.log( 'JavaScript lint failed!\n' );
+			done();
+		})
+	}
+);
 
 
 /**
@@ -172,13 +177,9 @@ gulp.task('default', ['lint'], function () {
  * prefix the code when needed,
  * and attach sourcemap
  */
-const autoprefixer = require( 'gulp-autoprefixer' );
-
-const devSassFiles = 'dev/scss/**/*.s+(a|c)ss'; // Sass source
-
 gulp.task(
 	'styles', () => {
-		return gulp.src([ devSassFiles ])
+		return gulp.src([ userConfig.devSassFiles() ])
 		.pipe( sourcemaps.init() )
 		.pipe(
 			sass( { outputStyle: 'compressed' } )
@@ -191,7 +192,7 @@ gulp.task(
 			})
 		)
 		.pipe( sourcemaps.write( '/' ) )
-		.pipe( gulp.dest( 'build/css' ) ) // Place the processed stylesheet in here
+		.pipe( gulp.dest( userConfig.buildCssFolder() ) ) // Place the processed stylesheet in here
 		//.pipe( bsync.stream() )
 		.pipe(
 			notify({
@@ -205,34 +206,53 @@ gulp.task(
 );
 
 /**
- * Lint SASS
+ * Lint SASS for development
  */
-const sassLint = require( 'gulp-sass-lint' );
-
 gulp.task(
-	'sasslint', function () {
-		return gulp.src([ devSassFiles ])
+	'sasslint', () => {
+		return gulp.src([ userConfig.devSassFiles() ])
 		.pipe(
 			sassLint({
 				options: {
-					formatter: userConfig.sassLintDisplay()
+					"formatter": userConfig.sassLintDisplay(),
+					"cache-config": true
 				},
-				configFile: '.sass-lint.yml'
+				configFile: userConfig.sassLintConfig()
 			})
 		)
 		.pipe( sassLint.format() )
-		// Uncomment if you want Gulp to stop listening if encountered an error:
-		// .pipe(sassLint.failOnError())
-		// .pipe( bsync.stream() )
 		.pipe(
 			notify({
 				"title": "[ sasslint ]",
 				"message": "Sass lint task complete!",
 				"onLast": true,
 				"sound": userConfig.gulpSoundSwitch(),
-				"timeout": 1
 			})
 		)
+	}
+);
+
+/**
+ * Lint SASS for production
+ * The task will fail on error!
+ */
+gulp.task(
+	'sasslint:prod', () => {
+		return gulp.src([ userConfig.devSassFiles() ])
+		.pipe(
+			sassLint({
+				options: {
+					formatter: userConfig.sassLintDisplay(),
+					"cache-config": true
+				},
+				configFile: userConfig.sassLintConfig()
+			})
+		)
+		.pipe( sassLint.format() )
+		.pipe( sassLint.failOnError() )
+		.on("error", () => {
+			console.log( 'Sass lint failed!\n' );
+		})
 	}
 );
 
@@ -247,49 +267,17 @@ gulp.task(
 );
 
 /**
- * Size report - display the file sizes
+ * Size report - display the file sizes inside the build folder
  */
 gulp.task(
 	'sizereport', () => {
 		return gulp.src([
-			'build/**/*'
-			// 'images/**/*'
+			'build/**/*',
+			'!build/**/*.map' // Don't include sourcemaps
 		])
 		.pipe( sizereport( { gzip: true } ) )
 	}
 );
-
-/**
- * Humans.txt
- * http://humanstxt.org/Standard.html
- */
-gulp.task('human', () => {
-	return gulp.src('index.php')
-	.pipe(humans({
-		site: [
-			'Last update: 0000/00/00',
-			userConfig.humansTXT.standards(),
-			userConfig.humansTXT.components(),
-			userConfig.humansTXT.software()
-		],
-		note: userConfig.humansTXT.note(),
-		team: userConfig.humansTXT.team()
-	}))
-	.pipe(gulp.dest('./'))
-	.pipe(notify({
-		"title": "[ human ]",
-		"message": "HumansTXT created."
-	}));
-});
-/**
- * Update last modified date in humans.txt
- */
-gulp.task('human-update', () => {
-	return gulp.src('./humans.txt')
-		.pipe(updateHumanstxtDate())
-		.pipe(gulp.dest('./'));
-		// .pipe(notify({message: 'HumansTXT updated'}));
-});
 
 /**
  * Browser sync
@@ -322,14 +310,14 @@ gulp.task(
 );
 
 /**
- * WordPress Lint
+ * WordPress Lint for development
  * Lints .php files against WordPress VIP Coding Standards
+ *
+ * Notes:
+ * - https://github.com/WordPress-Coding-Standards/WordPress-Coding-Standards
+ * - https://github.com/squizlabs/PHP_CodeSniffer
+ * - composer!
  */
-// https://github.com/WordPress-Coding-Standards/WordPress-Coding-Standards
-// https://github.com/squizlabs/PHP_CodeSniffer
-// composer!
-const phpcs = require( 'gulp-phpcs' );
-
 gulp.task(
 	'wplint', () => {
 		return gulp.src([
@@ -337,7 +325,6 @@ gulp.task(
 			// Add exceptions here:
 			'!node_modules/**/*.php'
 		])
-		// Validate files using PHP Code Sniffer
 		.pipe(
 			phpcs({
 				bin: 'c:/users/' + userConfig.userName() + '/appdata/roaming/composer/vendor/bin/phpcs',
@@ -347,11 +334,7 @@ gulp.task(
 				colors: true
 			})
 		)
-		// Log all problems
-		.pipe( phpcs.reporter( 'log' ) )
-		// Write all problems into a report file
-		//.pipe( phpcs.reporter( 'file', { path: "log-phpcs-wpcs-report.txt" } ) )
-		//.pipe( bsync.stream() )
+		.pipe( phpcs.reporter( 'log' ) ) // Log all problems
 		.pipe(
 			notify({
 				"title": "[ wplint ]",
@@ -360,6 +343,39 @@ gulp.task(
 				"sound": userConfig.gulpSoundSwitch()
 			})
 		)
+	}
+);
+
+// gulp.task('phpcbf', shell.task(['vendor/bin/phpcbf --standard=PSR2 --ignore=vendor/,some/other/folder folder/to/include another/folder/to/include somefiletoinclude.php server.php']));
+
+/**
+ * WordPress Lint for production
+ * The task will fail on error!
+ */
+gulp.task(
+	'wplint:prod', (done) => {
+		return gulp.src([
+			'./**/*.php',
+			// Add exceptions here:
+			'!node_modules/**/*.php'
+		])
+		.pipe(
+			phpcs({
+				bin: 'c:/users/' + userConfig.userName() + '/appdata/roaming/composer/vendor/bin/phpcs',
+				standard: 'WordPress-VIP',
+				severity: 1,
+				warningSeverity: 1,
+				errorSeverity: 2,
+				showSniffCode: true,
+				colors: true
+			})
+		)
+		.pipe( phpcs.reporter( 'log' ) ) // Log all problems
+		.pipe( phpcs.reporter( 'fail' ) )
+		.on("error", function() {
+			console.log( 'WordPress lint failed!\n' );
+			done();
+		})
 	}
 );
 
@@ -384,16 +400,61 @@ gulp.task(
 		function watcher(done) {
 			gulp.watch([ '**/*.php' ], gulp.parallel( 'wplint' ) );
 			gulp.watch([ 'dev/js/**/*.js' ], gulp.parallel( 'scripts', 'jslint' ) );
-			gulp.watch([ 'dev/scss/**/*.scss' ], gulp.parallel( 'styles', 'sasslint' ) );
+			gulp.watch([ 'dev/scss/**/*.s+(a|c)ss' ], gulp.parallel( 'styles', 'sasslint' ) );
 			//gulp.watch([ 'dev/svg/*.svg' ], gulp.parallel( 'svg' ) );
 			done();
 		}
 	)
 );
 
+/**
+ * Default task with no browser sync server
+ */
+gulp.task(
+	'no-bs',
+	gulp.series(
+		'clean', // clean the build folder
+
+		// If you have to process SVG, uncomment it from the list + inside the watcher function
+		gulp.parallel( /*'svg', */'scripts', 'styles' ),
+
+		function watcher(done) {
+			gulp.watch([ '**/*.php' ], gulp.parallel( 'wplint' ) );
+			gulp.watch([ 'dev/js/**/*.js' ], gulp.parallel( 'scripts', 'jslint' ) );
+			gulp.watch([ 'dev/scss/**/*.s+(a|c)ss' ], gulp.parallel( 'styles', 'sasslint' ) );
+			//gulp.watch([ 'dev/svg/*.svg' ], gulp.parallel( 'svg' ) );
+			done();
+		}
+	)
+);
+
+/**
+ * Rebuild task
+ */
+gulp.task(
+	'rebuild',
+	gulp.series(
+		'clean', // clean the build folder
+
+		// Turn these on if you want linting
+		// 'wplint', // lint WordPress
+		// 'jslint', // lint JavaScript
+		// 'sasslint', // lint Sass
+
+		// If you have to process SVG, uncomment it from the list + inside the watcher function
+		gulp.parallel( 'img-opt', /*'svg', */'scripts', 'styles' ),
+
+		'sizereport'
+	)
+);
+
+/**
+ * Production / distribution tasks
+ * Build the assets for production
+ */
 gulp.task(
 	'notify-prod', function(done) {
-		return gulp.src([ '**/*.*' ])
+		return gulp.src([ 'build/**/*' ])
 		.pipe(
 			notify({
 				"title": "Production build",
@@ -406,34 +467,16 @@ gulp.task(
 	}
 );
 
-/**
- * Build the assets for production
- */
 gulp.task(
-	'build-prod',
+	'prod',
 	gulp.series(
-		'clean',
-		//'img-opt',
-		'sasslint',
-		'strip',
-		gulp.parallel( 'scripts', 'styles', 'svg' ),
-		'sizereport',
-		'notify-prod'
-	)
-);
+		gulp.parallel('clean', 'strip'),
 
-gulp.task(
-	'open', () => {
-		return gulp.src([ '.' ])
-		.pipe(
-			notify({
-				"title": "OPEN TASK",
-				"message": "http://github.com",
-				"onLast": true,
-				"sound": userConfig.gulpSoundSwitch(),
-				"open": "http://github.com", // URL to open on Click
-				"wait": true, // Wait for User Action against Notification or times out. Same as timeout = 5 seconds
-			})
-		)
-	}
+		'sasslint:prod', // lint Sass
+		'wplint:prod',   // lint WordPress
+		'jslint:prod',   // lint JavaScript
+
+		//gulp.parallel( 'img-opt', 'scripts', 'styles', 'svg' ),
+		gulp.parallel( 'sizereport', 'notify-prod' )
+	)
 );
